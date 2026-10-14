@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EventType {
+  ONE_OFF
+  RECURRING
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SessionStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  STRIPE
+  VENMO
+  ZELLE
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+  EXPIRED
+}
+
+enum TicketStatus {
+  VALID
+  CHECKED_IN
+  VOID
+}
+
+enum Role {
+  OWNER
+  STAFF
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  slug        String      @unique
+  description String      @default("")
+  images      String[]
+  location    String      @default("")
+  type        EventType
+  status      EventStatus @default(DRAFT)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  ticketTypes TicketType[]
+  sessions    Session[]
+}
+
+model TicketType {
+  id         String   @id @default(cuid())
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name       String
+  priceCents Int
+  cap        Int? // optional per-type cap per session
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  orderItems OrderItem[]
+  tickets    Ticket[]
+
+  @@index([eventId])
+}
+
+model Session {
+  id        String        @id @default(cuid())
+  eventId   String
+  event     Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  startsAt  DateTime // UTC
+  endsAt    DateTime? // UTC
+  capacity  Int
+  status    SessionStatus @default(OPEN)
+  createdAt DateTime      @default(now())
+
+  orders Order[]
+
+  @@index([eventId, startsAt])
+}
+
+model Order {
+  id                    String        @id @default(cuid())
+  code                  String        @unique // short code, e.g. SE-7K4Q
+  accessToken           String        @unique // secure "My booking" link token
+  sessionId             String
+  session               Session       @relation(fields: [sessionId], references: [id])
+  customerName          String
+  customerEmail         String
+  customerPhone         String
+  notes                 String?
+  subtotalCents         Int
+  feeCents              Int           @default(0)
+  totalCents            Int
+  paymentMethod         PaymentMethod
+  status                OrderStatus   @default(PENDING)
+  holdExpiresAt         DateTime?
+  stripeSessionId       String?       @unique
+  stripePaymentIntentId String?
+  confirmationSentAt    DateTime?
+  refundedCents         Int           @default(0)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  items   OrderItem[]
+  tickets Ticket[]
+
+  @@index([customerEmail])
+  @@index([status, holdExpiresAt])
+}
+
+model OrderItem {
+  id           String     @id @default(cuid())
+  orderId      String
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketTypeId String
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  quantity     Int
+  unitCents    Int // price snapshot at purchase time
+
+  @@index([orderId])
+}
+
+model Ticket {
+  id            String       @id @default(cuid())
+  orderId       String
+  order         Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketTypeId  String
+  ticketType    TicketType   @relation(fields: [ticketTypeId], references: [id])
+  qrToken       String       @unique // long random token
+  status        TicketStatus @default(VALID)
+  checkedInAt   DateTime?
+  checkedInById String?
+  checkedInBy   User?        @relation(fields: [checkedInById], references: [id])
+  createdAt     DateTime     @default(now())
+
+  @@index([orderId])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(STAFF)
+  createdAt    DateTime @default(now())
+
+  checkIns  Ticket[]
+  auditLogs AuditLog[]
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String // e.g. ORDER_MARKED_PAID, ORDER_REFUNDED, TICKET_CHECKED_IN
+  entity    String
+  entityId  String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
+
+// Single-row table (id = 1)
+model Settings {
+  id                 Int     @id @default(1)
+  businessName       String  @default("Steven's Events")
+  logoUrl            String?
+  bookingFeePercent  Decimal @default(3.5) @db.Decimal(5, 2)
+  feeAppliesToManual Boolean @default(false) // Venmo/Zelle orders
+  venmoHandle        String  @default("")
+  zelleContact       String  @default("")
+  holdMinutesCard    Int     @default(10)
+  holdMinutesManual  Int     @default(720) // 12 hours
+  refundCutoffHours  Int     @default(24)
+  feeRefundable      Boolean @default(false)
+  refundPolicyText   String  @default("")
+  timeZone           String  @default("America/Chicago")
+}
