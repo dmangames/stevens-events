@@ -32,7 +32,7 @@ A simple, self-hosted event ticketing site (a personal FareHarbor alternative). 
 | Email | **Resend** (free tier) or Postmark | Mail sent straight from a VPS usually lands in spam |
 | QR codes | `qrcode` npm package (generate) + `html5-qrcode` (scan with a phone camera) | |
 | Styling | Tailwind CSS | |
-| Deployment | **Docker Compose** on the VPS: `app` + `postgres` + **Caddy** (automatic HTTPS) | |
+| Deployment | **Docker Compose** on the VPS: `app` + `postgres` + **Apache** (reverse proxy, certbot HTTPS) | |
 | Background jobs | Simple cron container (or `node-cron`) | Releases expired seat holds, sends reminders |
 | Backups | Nightly `pg_dump` to off-server storage (e.g. Backblaze B2 / DO Spaces) | |
 
@@ -93,7 +93,7 @@ A simple, self-hosted event ticketing site (a personal FareHarbor alternative). 
 - [ ] Seat-hold expiry job runs every minute; pending Venmo/Zelle orders expire automatically
 - [ ] Rate limiting + Cloudflare Turnstile on checkout to stop bots grabbing seats
 - [ ] Passwords hashed (bcrypt/argon2); role checks on **every** admin API route
-- [ ] HTTPS everywhere (Caddy), secure cookies, CSRF protection
+- [ ] HTTPS everywhere (Apache + certbot), secure cookies, CSRF protection
 - [ ] Secrets in `.env` on the server, never committed
 - [ ] Nightly DB backups + a tested restore
 - [ ] Server: SSH keys only, firewall (ports 22/80/443), automatic security updates

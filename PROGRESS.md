@@ -15,7 +15,7 @@ All seven phases are written. Phases 0-2 were already in place at the start of t
 | 4 Venmo/Zelle | Manual payment page, pending queue, Mark paid, hold expiry | Written; logic tested |
 | 5 Check-in | Staff accounts, phone scanner, guest lists, CSV | Written; logic tested, camera untested |
 | 6 Refunds and rescheduling | Admin and self-service, Stripe refunds | Written; manual path tested, Stripe refund path untested |
-| 7 Deploy | Production Docker stack, Caddy, backups, guide | Written; image tested locally, nothing tested on a server |
+| 7 Deploy | Production Docker stack, Apache, backups, guide | Written; image tested locally, nothing tested on a server |
 
 ## What was built this session
 
@@ -45,7 +45,7 @@ All seven phases are written. Phases 0-2 were already in place at the start of t
 - New column `Order.refundedCents`. Logic is in `src/lib/changes.ts`.
 
 **Phase 7, deploy**
-- `docker-compose.prod.yml` (db, app, Caddy, backup), `Caddyfile`, `backup/` (nightly dump, off-server copy with rclone), `scripts/create-owner.mjs`, `.env.prod.example`, and the step-by-step `DEPLOY.md`.
+- `docker-compose.prod.yml` (db, app, backup), `apache/stevens-events.conf`, `backup/` (nightly dump, off-server copy with rclone), `scripts/create-owner.mjs`, `.env.prod.example`, and the step-by-step `DEPLOY.md`.
 - `/privacy` and `/refund-policy` pages with a footer link. Optional Cloudflare Turnstile on checkout (off unless keys are set).
 
 **Other changes**
@@ -70,7 +70,7 @@ All seven phases are written. Phases 0-2 were already in place at the start of t
 - Stripe card checkout with the new code, the live webhook, and Stripe-API refunds.
 - Real email delivery through Resend, including the QR images in the email.
 - The phone camera scanner (needs HTTPS or localhost on a phone).
-- On a real server: the Caddy HTTPS certificate, the off-server backup upload, and a backup restore.
+- On a real server: the Apache + certbot HTTPS setup, the off-server backup upload, and a backup restore.
 
 ## Known gaps
 

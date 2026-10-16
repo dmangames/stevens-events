@@ -14,13 +14,14 @@ You run the server steps; everything the server needs is in this repo. Budget ab
 3. SSH in and run:
    ```
    apt update && apt -y upgrade
-   apt -y install ufw unattended-upgrades
-   ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp
+   apt -y install ufw unattended-upgrades apache2 certbot python3-certbot-apache
+   ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp
    ufw --force enable
    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
    systemctl restart ssh
    dpkg-reconfigure -plow unattended-upgrades      # choose Yes
    curl -fsSL https://get.docker.com | sh
+   a2enmod proxy proxy_http headers deflate
    ```
    Before closing your session, open a **second** terminal and confirm you can still SSH in.
 
@@ -46,7 +47,15 @@ docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml ps          # app should become "healthy"
 docker compose -f docker-compose.prod.yml exec app node scripts/create-owner.mjs you@example.com 'a-long-password'
 ```
-Open `https://YOUR_DOMAIN`. Caddy fetches the HTTPS certificate on first visit (give it a minute). Sign in at `/login`.
+Then set up Apache (the app listens only on `127.0.0.1:3000`):
+```
+cp apache/stevens-events.conf /etc/apache2/sites-available/
+sed -i 's/YOUR_DOMAIN/tickets.yourdomain.com/' /etc/apache2/sites-available/stevens-events.conf
+a2dissite 000-default && a2ensite stevens-events
+systemctl reload apache2
+certbot --apache -d tickets.yourdomain.com      # gets the HTTPS certificate, sets up redirect and auto-renewal
+```
+Open `https://YOUR_DOMAIN` and sign in at `/login`.
 
 ## 5. Stripe live webhook
 1. Stripe Dashboard (live mode) -> Developers -> Webhooks -> Add endpoint:
@@ -88,7 +97,8 @@ Create a free Cloudflare Turnstile widget for your domain, put the site key and 
 Copy the new code over, then `docker compose -f docker-compose.prod.yml up -d --build`. Database migrations run automatically when the app starts.
 
 ## Troubleshooting
-- Logs: `docker compose -f docker-compose.prod.yml logs -f app` (or `caddy`, `backup`).
-- Certificate not issued: check the DNS A record points at this server and ports 80/443 are open.
+- Logs: `docker compose -f docker-compose.prod.yml logs -f app` (or `backup`). Apache logs: `/var/log/apache2/error.log`.
+- Certificate not issued: check the DNS A record points at this server and ports 80/443 are open, then re-run `certbot --apache`.
+- 503 from Apache: the app isn't up yet or the proxy modules are missing (`a2enmod proxy proxy_http headers`).
 - Can't sign in after changing `AUTH_SECRET`: you will just need to sign in again.
 - A card payment that didn't turn into tickets: the booking page re-checks Stripe automatically; check the webhook shows deliveries in the Stripe dashboard.
